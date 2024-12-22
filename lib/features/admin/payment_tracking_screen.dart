@@ -27,8 +27,8 @@ class _PaymentTrackingScreenState extends State<PaymentTrackingScreen> {
     }
   }
 
-  Future<List<DropdownMenuItem<String>>> _fetchDropdownItems(
-      String role) async {
+  /// Fetches items for the dropdown from Firestore.
+  Future<List<DropdownMenuItem<String>>> _fetchDropdownItems(String role) async {
     QuerySnapshot snapshot = await FirebaseFirestore.instance
         .collection('users')
         .where('role', isEqualTo: role)
@@ -42,15 +42,67 @@ class _PaymentTrackingScreenState extends State<PaymentTrackingScreen> {
         .toList();
   }
 
+  /// Builds a reusable dropdown for customer and worker selection.
+  Widget buildDropdown({
+    required String role,
+    required String hint,
+    required String? selectedValue,
+    required Function(String?) onChanged,
+  }) {
+    return FutureBuilder<List<DropdownMenuItem<String>>>(
+      future: _fetchDropdownItems(role),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const CircularProgressIndicator();
+        }
+
+        return DropdownButtonFormField<String>(
+          value: selectedValue,
+          hint: Text(hint),
+          items: snapshot.data ?? [],
+          onChanged: onChanged,
+          decoration: const InputDecoration(
+            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            border: OutlineInputBorder(),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Builds the Firestore query for filtered payments.
+  Query buildPaymentQuery() {
+    Query query = FirebaseFirestore.instance
+        .collection('jobs')
+        .where('paymentStatus', isEqualTo: 'completed');
+
+    if (_selectedCustomer != null) {
+      query = query.where('customerId', isEqualTo: _selectedCustomer);
+    }
+
+    if (_selectedWorker != null) {
+      query = query.where('workerId', isEqualTo: _selectedWorker);
+    }
+
+    if (_startDateController.text.isNotEmpty) {
+      final startDate = DateTime.parse(_startDateController.text);
+      query = query.where('createdAt', isGreaterThanOrEqualTo: startDate);
+    }
+
+    if (_endDateController.text.isNotEmpty) {
+      final endDate = DateTime.parse(_endDateController.text);
+      query = query.where('createdAt', isLessThanOrEqualTo: endDate);
+    }
+
+    return query;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Payment Tracking")),
       body: Column(
         children: [
-          // Commented out the PaymentSummary since it's not defined in the code
-          // const PaymentSummary(),
-          const Divider(),
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
@@ -86,45 +138,27 @@ class _PaymentTrackingScreenState extends State<PaymentTrackingScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: FutureBuilder<List<DropdownMenuItem<String>>>(
-                    future: _fetchDropdownItems('customer'),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const CircularProgressIndicator();
-                      }
-
-                      return DropdownButtonFormField<String>(
-                        value: _selectedCustomer,
-                        hint: const Text("Select Customer"),
-                        items: snapshot.data ?? [],
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedCustomer = value;
-                          });
-                        },
-                      );
+                  child: buildDropdown(
+                    role: 'customer',
+                    hint: 'Select Customer',
+                    selectedValue: _selectedCustomer,
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedCustomer = value;
+                      });
                     },
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: FutureBuilder<List<DropdownMenuItem<String>>>(
-                    future: _fetchDropdownItems('worker'),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const CircularProgressIndicator();
-                      }
-
-                      return DropdownButtonFormField<String>(
-                        value: _selectedWorker,
-                        hint: const Text("Select Worker"),
-                        items: snapshot.data ?? [],
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedWorker = value;
-                          });
-                        },
-                      );
+                  child: buildDropdown(
+                    role: 'worker',
+                    hint: 'Select Worker',
+                    selectedValue: _selectedWorker,
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedWorker = value;
+                      });
                     },
                   ),
                 ),
@@ -134,10 +168,7 @@ class _PaymentTrackingScreenState extends State<PaymentTrackingScreen> {
           const Divider(),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('jobs')
-                  .where('paymentStatus', isEqualTo: 'completed')
-                  .snapshots(),
+              stream: buildPaymentQuery().snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -147,49 +178,14 @@ class _PaymentTrackingScreenState extends State<PaymentTrackingScreen> {
                   return const Center(child: Text("No payments found."));
                 }
 
-                final jobs = snapshot.data!.docs;
-
-                // Filter jobs
-                final filteredJobs = jobs.where((doc) {
-                  final job = doc.data() as Map<String, dynamic>;
-
-                  // Filter by date range
-                  final startDate = _startDateController.text.isNotEmpty
-                      ? DateTime.parse(_startDateController.text)
-                      : null;
-                  final endDate = _endDateController.text.isNotEmpty
-                      ? DateTime.parse(_endDateController.text)
-                      : null;
-                  final jobDate = job['createdAt'].toDate();
-
-                  if (startDate != null && jobDate.isBefore(startDate)) {
-                    return false;
-                  }
-                  if (endDate != null && jobDate.isAfter(endDate)) {
-                    return false;
-                  }
-
-                  // Filter by customer/worker
-                  if (_selectedCustomer != null &&
-                      job['customerId'] != _selectedCustomer) {
-                    return false;
-                  }
-                  if (_selectedWorker != null &&
-                      job['workerId'] != _selectedWorker) {
-                    return false;
-                  }
-
-                  return true;
-                }).toList();
-
                 return ListView.builder(
-                  itemCount: filteredJobs.length,
+                  itemCount: snapshot.data!.docs.length,
                   itemBuilder: (context, index) {
                     final job =
-                        filteredJobs[index].data() as Map<String, dynamic>;
+                        snapshot.data!.docs[index].data() as Map<String, dynamic>;
 
                     return ListTile(
-                      title: Text("Job ID: ${filteredJobs[index].id}"),
+                      title: Text("Job ID: ${snapshot.data!.docs[index].id}"),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
