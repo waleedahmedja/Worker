@@ -1,0 +1,47 @@
+name: worker
+description: "Worker application for CleanMatch."
+# Prevent accidental publication to pub.dev
+publish_to: 'none'
+
+# Application version
+version: 1.0.0+1
+
+# Dart SDK environment
+environment:
+  sdk: ">=3.5.3 <4.0.0"
+
+# Dependencies required for the worker application
+dependencies:
+  flutter:
+    sdk: flutter
+  cloud_firestore: ^4.17.5               # For Firestore database
+  firebase_core: ^2.10.0               # Core Firebase functionality
+  firebase_messaging: ^14.6.5          # Firebase Cloud Messaging (Push Notifications)
+  location: ^5.0.0                     # For worker location tracking
+  provider: ^6.1.2                     # State management
+  flutter_local_notifications: ^13.0.0 # Local notifications for job requests
+  cupertino_icons: ^1.0.8              # iOS-style icons
+  firebase_auth: ^4.8.0
+
+# Development-only dependencies
+dev_dependencies:
+  flutter_test:
+    sdk: flutter                       # Testing framework
+  flutter_lints: ^4.0.0                # Linting rules for best practices
+
+# Flutter-specific configurations
+flutter:
+  uses-material-design: true           # Material design for icons and UI
+
+  # Assets and resources (optional: uncomment if needed)
+  # assets:
+  #   - assets/icons/
+  #   - assets/images/
+
+  # Fonts (optional: uncomment if you want custom fonts)
+  # fonts:
+  #   - family: CustomFont
+  #     fonts:
+  #       - asset: fonts/CustomFont-Regular.ttf
+  #       - asset: fonts/CustomFont-Bold.ttf
+  #         weight: 700

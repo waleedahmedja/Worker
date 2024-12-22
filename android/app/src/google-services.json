@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "687273347221",
+    "project_id": "cleanmatch-a0361",
+    "storage_bucket": "cleanmatch-a0361.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:687273347221:android:976de1385e163dc1be739c",
+        "android_client_info": {
+          "package_name": "com.cleanmatch.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCRQqQo0aLZ-9oL2XP1CSYvSybrbkeChmY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
