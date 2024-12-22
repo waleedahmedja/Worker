@@ -15,6 +15,8 @@ class AuthProvider extends ChangeNotifier {
   User? get user => _user;
   Map<String, dynamic>? get userData => _userData;
 
+  static const String usersCollection = 'users';
+
   /// Registers a new user with email and password.
   Future<void> signUpWithEmail({
     required String email,
@@ -23,8 +25,10 @@ class AuthProvider extends ChangeNotifier {
     required String cnic,
     required String role, // "customer" or "worker"
   }) async {
+    if (email.isEmpty || password.isEmpty || name.isEmpty || cnic.isEmpty) {
+      throw ArgumentError('All fields are required.');
+    }
     try {
-      // Create Firebase user
       UserCredential userCredential =
           await _auth.createUserWithEmailAndPassword(
         email: email,
@@ -32,7 +36,6 @@ class AuthProvider extends ChangeNotifier {
       );
       _user = userCredential.user;
 
-      // Store user details in Firestore
       await _firestoreService.addUser(_user!.uid, {
         'name': name,
         'cnic': cnic,
@@ -44,8 +47,7 @@ class AuthProvider extends ChangeNotifier {
         'isAvailable': role == 'worker' ? false : null,
       });
 
-      // Save FCM token
-      await FCMService.saveFCMToken(_user!.uid); // Use the class name to call the static method
+      await FCMService.saveFCMToken(_user!.uid);
 
       notifyListeners();
     } catch (e) {
@@ -56,6 +58,9 @@ class AuthProvider extends ChangeNotifier {
 
   /// Logs in a user with email and password.
   Future<void> signInWithEmail(String email, String password) async {
+    if (email.isEmpty || password.isEmpty) {
+      throw ArgumentError('Email and password are required.');
+    }
     try {
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
@@ -63,19 +68,26 @@ class AuthProvider extends ChangeNotifier {
       );
       _user = userCredential.user;
 
-      // Fetch user profile from Firestore
-      DocumentSnapshot userDoc =
-          await _firestore.collection('users').doc(_user!.uid).get();
-      _userData = userDoc.data() as Map<String, dynamic>;
+      // Listen to real-time user data
+      listenToUserData(_user!.uid);
 
-      // Save FCM token
-      await FCMService.saveFCMToken(_user!.uid); // Use the class name to call the static method
+      await FCMService.saveFCMToken(_user!.uid);
 
       notifyListeners();
     } catch (e) {
       debugPrint('Error during sign-in: $e');
       rethrow;
     }
+  }
+
+  /// Listens to user data for real-time updates.
+  void listenToUserData(String uid) {
+    _firestore.collection(usersCollection).doc(uid).snapshots().listen((snapshot) {
+      if (snapshot.exists) {
+        _userData = snapshot.data() as Map<String, dynamic>;
+        notifyListeners();
+      }
+    });
   }
 
   /// Logs out the current user.
@@ -87,6 +99,17 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('Error during sign-out: $e');
+      rethrow;
+    }
+  }
+
+  /// Sends a password reset email.
+  Future<void> resetPassword(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      debugPrint('Password reset email sent to $email');
+    } catch (e) {
+      debugPrint('Error sending password reset email: $e');
       rethrow;
     }
   }

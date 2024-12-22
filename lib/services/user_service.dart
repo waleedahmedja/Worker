@@ -3,27 +3,32 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // Firestore collection and field names as constants
+  static const String usersCollection = 'users';
+  static const String roleField = 'role';
+
   /// Adds a user to the Firestore `users` collection.
-  ///
-  /// [uid]: The unique user ID.
-  /// [userData]: A map containing user data to store in Firestore.
   Future<void> addUser(String uid, Map<String, dynamic> userData) async {
+    if (uid.isEmpty || userData.isEmpty) {
+      throw ArgumentError(
+          'Invalid arguments: UID or user data cannot be empty.');
+    }
     try {
-      await _firestore.collection('users').doc(uid).set(userData);
+      await _firestore.collection(usersCollection).doc(uid).set(userData);
       print('User added successfully: $uid');
     } catch (e) {
       print('Error adding user: $e');
-      rethrow; // Pass the error to the caller
+      rethrow;
     }
   }
 
   /// Updates a user document in the Firestore `users` collection.
-  ///
-  /// [uid]: The unique user ID.
-  /// [updates]: A map containing fields to update.
   Future<void> updateUser(String uid, Map<String, dynamic> updates) async {
+    if (uid.isEmpty || updates.isEmpty) {
+      throw ArgumentError('Invalid arguments: UID or updates cannot be empty.');
+    }
     try {
-      await _firestore.collection('users').doc(uid).update(updates);
+      await _firestore.collection(usersCollection).doc(uid).update(updates);
       print('User updated successfully: $uid');
     } catch (e) {
       print('Error updating user: $e');
@@ -32,13 +37,13 @@ class UserService {
   }
 
   /// Fetches a user's data by UID from the Firestore `users` collection.
-  ///
-  /// [uid]: The unique user ID.
-  /// Returns: A map containing user data if found, otherwise `null`.
   Future<Map<String, dynamic>?> getUser(String uid) async {
+    if (uid.isEmpty) {
+      throw ArgumentError('Invalid UID.');
+    }
     try {
       DocumentSnapshot<Map<String, dynamic>> userDoc =
-          await _firestore.collection('users').doc(uid).get();
+          await _firestore.collection(usersCollection).doc(uid).get();
       return userDoc.data();
     } catch (e) {
       print('Error fetching user: $e');
@@ -47,11 +52,12 @@ class UserService {
   }
 
   /// Deletes a user document in the Firestore `users` collection.
-  ///
-  /// [uid]: The unique user ID.
   Future<void> deleteUser(String uid) async {
+    if (uid.isEmpty) {
+      throw ArgumentError('Invalid UID.');
+    }
     try {
-      await _firestore.collection('users').doc(uid).delete();
+      await _firestore.collection(usersCollection).doc(uid).delete();
       print('User deleted successfully: $uid');
     } catch (e) {
       print('Error deleting user: $e');
@@ -60,14 +66,14 @@ class UserService {
   }
 
   /// Fetches all users by a specific role from Firestore.
-  ///
-  /// [role]: The role to filter by (e.g., `worker` or `customer`).
-  /// Returns: A list of users with the specified role.
   Future<List<Map<String, dynamic>>> getUsersByRole(String role) async {
+    if (role.isEmpty) {
+      throw ArgumentError('Role cannot be empty.');
+    }
     try {
       QuerySnapshot<Map<String, dynamic>> querySnapshot = await _firestore
-          .collection('users')
-          .where('role', isEqualTo: role)
+          .collection(usersCollection)
+          .where(roleField, isEqualTo: role)
           .get();
 
       return querySnapshot.docs
@@ -75,6 +81,33 @@ class UserService {
           .toList();
     } catch (e) {
       print('Error fetching users by role: $e');
+      rethrow;
+    }
+  }
+
+  /// Fetches users by role with pagination.
+  Future<List<Map<String, dynamic>>> getUsersByRolePaginated(
+      String role, DocumentSnapshot? lastDoc, int limit) async {
+    if (role.isEmpty || limit <= 0) {
+      throw ArgumentError('Invalid arguments for paginated role fetch.');
+    }
+    try {
+      Query query = _firestore
+          .collection(usersCollection)
+          .where(roleField, isEqualTo: role)
+          .limit(limit);
+
+      if (lastDoc != null) {
+        query = query.startAfterDocument(lastDoc);
+      }
+
+      QuerySnapshot querySnapshot = await query.get();
+
+      return querySnapshot.docs
+          .map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>})
+          .toList();
+    } catch (e) {
+      print('Error fetching paginated users by role: $e');
       rethrow;
     }
   }
