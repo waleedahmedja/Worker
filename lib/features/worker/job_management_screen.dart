@@ -23,17 +23,24 @@ class JobManagementScreen extends StatelessWidget {
   }
 
   /// Fetches the authenticated worker's ID
-  String _getWorkerId() {
+  String? _getWorkerId(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      throw Exception("User not authenticated");
+      // Navigate to login screen if not authenticated
+      Future.microtask(() => Navigator.pushReplacementNamed(context, '/login'));
+      return null;
     }
     return user.uid;
   }
 
   @override
   Widget build(BuildContext context) {
-    final workerId = _getWorkerId();
+    final workerId = _getWorkerId(context);
+    if (workerId == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text("Manage Jobs")),
@@ -55,27 +62,44 @@ class JobManagementScreen extends StatelessWidget {
           final jobs = snapshot.data!.docs;
 
           return ListView.builder(
+            padding: const EdgeInsets.all(16.0),
             itemCount: jobs.length,
             itemBuilder: (context, index) {
               final job = jobs[index].data() as Map<String, dynamic>;
+              final isPaymentCompleted = job['paymentStatus'] == 'completed';
 
               return Card(
                 elevation: 3,
-                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                child: ListTile(
-                  title: Text(
-                    "Job Location: ${job['location'].latitude}, ${job['location'].longitude}",
-                  ),
-                  subtitle: Column(
+                margin: const EdgeInsets.only(bottom: 16.0),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Fare: \$${job['fare']}"),
+                      Text(
+                        "Job Location: ${job['location'].latitude}, ${job['location'].longitude}",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text("Fare: \$${job['fare'] ?? 'N/A'}"),
                       Text("Notes: ${job['customerNotes'] ?? 'No notes'}"),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: isPaymentCompleted
+                            ? null
+                            : () => _confirmPayment(context, jobs[index].id),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isPaymentCompleted
+                              ? Colors.grey
+                              : Theme.of(context).primaryColor,
+                        ),
+                        child: Text(
+                          isPaymentCompleted
+                              ? "Payment Completed"
+                              : "Confirm Payment",
+                        ),
+                      ),
                     ],
-                  ),
-                  trailing: ElevatedButton(
-                    onPressed: () => _confirmPayment(context, jobs[index].id),
-                    child: const Text("Confirm Payment"),
                   ),
                 ),
               );

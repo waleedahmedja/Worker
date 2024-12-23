@@ -13,30 +13,38 @@ class WorkerDashboard extends StatefulWidget {
 class _WorkerDashboardState extends State<WorkerDashboard> {
   final LocationService _locationService = LocationService();
   bool _isAvailable = false;
-  late String workerId; // Store the worker's ID
+  bool _isLoading = false; // Loading state for toggling availability
+  String? workerId;
 
   @override
   void initState() {
     super.initState();
+    _initializeWorker();
+  }
 
-    // Get the logged-in worker's ID
+  Future<void> _initializeWorker() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      workerId = user.uid;
-      _locationService.startUpdatingLocation(workerId);
+      setState(() {
+        workerId = user.uid;
+      });
+      _locationService.startUpdatingLocation(workerId!);
     } else {
-      // Handle unauthenticated state (e.g., navigate to login screen)
-      Navigator.pushReplacementNamed(context, '/login');
+      // Redirect unauthenticated users to login screen
+      Future.microtask(() => Navigator.pushReplacementNamed(context, '/login'));
     }
   }
 
   /// Toggles worker availability and updates Firestore
   Future<void> _toggleAvailability() async {
+    if (workerId == null) return;
+
     setState(() {
-      _isAvailable = !_isAvailable;
+      _isLoading = true;
     });
 
     try {
+      _isAvailable = !_isAvailable;
       await FirebaseFirestore.instance.collection('users').doc(workerId).update({
         'isAvailable': _isAvailable,
       });
@@ -49,11 +57,21 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error updating availability: $e')),
       );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (workerId == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Worker Dashboard'),
@@ -64,34 +82,29 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
           SwitchListTile(
             title: const Text("Set Availability"),
             value: _isAvailable,
-            onChanged: (value) => _toggleAvailability(),
+            onChanged: _isLoading ? null : (value) => _toggleAvailability(),
           ),
           const Divider(),
 
           // Navigation Options
           Expanded(
+            flex: 1,
             child: ListView(
               children: [
-                ListTile(
-                  title: const Text("Job Requests"),
-                  leading: const Icon(Icons.work_outline),
-                  onTap: () {
-                    Navigator.pushNamed(context, '/job-requests');
-                  },
+                _buildNavigationTile(
+                  title: "Job Requests",
+                  icon: Icons.work_outline,
+                  onTap: () => Navigator.pushNamed(context, '/job-requests'),
                 ),
-                ListTile(
-                  title: const Text("Earnings"),
-                  leading: const Icon(Icons.attach_money),
-                  onTap: () {
-                    Navigator.pushNamed(context, '/earnings');
-                  },
+                _buildNavigationTile(
+                  title: "Earnings",
+                  icon: Icons.attach_money,
+                  onTap: () => Navigator.pushNamed(context, '/earnings'),
                 ),
-                ListTile(
-                  title: const Text("Job History"),
-                  leading: const Icon(Icons.history),
-                  onTap: () {
-                    Navigator.pushNamed(context, '/job-history');
-                  },
+                _buildNavigationTile(
+                  title: "Job History",
+                  icon: Icons.history,
+                  onTap: () => Navigator.pushNamed(context, '/job-history'),
                 ),
               ],
             ),
@@ -104,6 +117,7 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           Expanded(
+            flex: 2,
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('jobs')
@@ -125,23 +139,30 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
                   itemCount: jobs.length,
                   itemBuilder: (context, index) {
                     final job = jobs[index].data() as Map<String, dynamic>;
+                    final location = job['location'];
+                    final status = job['status'] ?? 'Unknown';
 
-                    return ListTile(
-                      title: Text(
-                          "Location: ${job['location'].latitude}, ${job['location'].longitude}"),
-                      subtitle: Text("Status: ${job['status']}"),
-                      trailing: job['status'] == 'pending'
-                          ? ElevatedButton(
-                              onPressed: () async {
-                                // Accept Job
-                                await FirebaseFirestore.instance
-                                    .collection('jobs')
-                                    .doc(jobs[index].id)
-                                    .update({'status': 'in-progress'});
-                              },
-                              child: const Text("Accept Job"),
-                            )
-                          : null,
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                      elevation: 3,
+                      child: ListTile(
+                        title: Text(
+                          "Location: ${location != null ? '${location.latitude}, ${location.longitude}' : 'Unavailable'}",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text("Status: $status"),
+                        trailing: status == 'pending'
+                            ? ElevatedButton(
+                                onPressed: () async {
+                                  await FirebaseFirestore.instance
+                                      .collection('jobs')
+                                      .doc(jobs[index].id)
+                                      .update({'status': 'in-progress'});
+                                },
+                                child: const Text("Accept Job"),
+                              )
+                            : null,
+                      ),
                     );
                   },
                 );
@@ -150,6 +171,19 @@ class _WorkerDashboardState extends State<WorkerDashboard> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Helper to build navigation tiles
+  Widget _buildNavigationTile({
+    required String title,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      onTap: onTap,
     );
   }
 }

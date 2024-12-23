@@ -6,10 +6,11 @@ class JobRequestsScreen extends StatelessWidget {
   const JobRequestsScreen({super.key});
 
   /// Fetches the authenticated worker's ID
-  String _getWorkerId() {
+  String? _getWorkerId(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      throw Exception("User not authenticated");
+      Future.microtask(() => Navigator.pushReplacementNamed(context, '/login'));
+      return null;
     }
     return user.uid;
   }
@@ -50,7 +51,12 @@ class JobRequestsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final workerId = _getWorkerId();
+    final workerId = _getWorkerId(context);
+    if (workerId == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text("Job Requests")),
@@ -71,31 +77,49 @@ class JobRequestsScreen extends StatelessWidget {
           final jobs = snapshot.data!.docs;
 
           return ListView.builder(
+            padding: const EdgeInsets.all(16.0),
             itemCount: jobs.length,
             itemBuilder: (context, index) {
               final job = jobs[index].data() as Map<String, dynamic>;
+              final location = job['location'];
+              final fare = job['fare'] ?? 'N/A';
+              final notes = job['customerNotes'] ?? 'No notes provided';
 
               return Card(
-                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                child: ListTile(
-                  title: Text("Location: ${job['location'].latitude}, ${job['location'].longitude}"),
-                  subtitle: Column(
+                elevation: 3,
+                margin: const EdgeInsets.only(bottom: 16.0),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Fare: \$${job['fare']}"),
-                      Text("Notes: ${job['customerNotes'] ?? 'No notes provided'}"),
-                    ],
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.check, color: Colors.green),
-                        onPressed: () => _acceptJob(context, jobs[index].id, workerId),
+                      Text(
+                        "Location: ${location != null ? "${location.latitude}, ${location.longitude}" : 'Unavailable'}",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.red),
-                        onPressed: () => _rejectJob(context, jobs[index].id),
+                      const SizedBox(height: 8),
+                      Text("Fare: \$${fare}"),
+                      Text("Notes: $notes"),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () =>
+                                _acceptJob(context, jobs[index].id, workerId),
+                            icon: const Icon(Icons.check, color: Colors.white),
+                            label: const Text("Accept"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: () => _rejectJob(context, jobs[index].id),
+                            icon: const Icon(Icons.close, color: Colors.red),
+                            label: const Text("Reject"),
+                          ),
+                        ],
                       ),
                     ],
                   ),

@@ -12,7 +12,7 @@ class EarningsScreen extends StatelessWidget {
       throw Exception("User not logged in");
     }
 
-    final workerId = user.uid; // Get logged-in worker's UID
+    final workerId = user.uid;
 
     DocumentSnapshot doc = await FirebaseFirestore.instance
         .collection('earnings')
@@ -40,7 +40,7 @@ class EarningsScreen extends StatelessWidget {
           if (snapshot.hasError) {
             return Center(
               child: Text(
-                "Error: ${snapshot.error}",
+                "Failed to load earnings. Please try again later.",
                 style: const TextStyle(color: Colors.red),
               ),
             );
@@ -52,13 +52,14 @@ class EarningsScreen extends StatelessWidget {
 
           var earnings = snapshot.data!;
           return ListView(
+            padding: const EdgeInsets.all(16.0),
             children: [
               _buildEarningsTile("Daily Earnings", earnings['daily']),
               _buildEarningsTile("Weekly Earnings", earnings['weekly']),
               _buildEarningsTile("Monthly Earnings", earnings['monthly']),
               ListTile(
                 title: const Text("Total Earnings"),
-                trailing: Text("\$${earnings['total'] ?? 0.0}"),
+                trailing: Text("\$${earnings['total']?.toStringAsFixed(2) ?? '0.00'}"),
               ),
             ],
           );
@@ -69,7 +70,9 @@ class EarningsScreen extends StatelessWidget {
 
   /// Helper to build an earnings tile with calculated totals
   Widget _buildEarningsTile(String title, dynamic data) {
-    if (data == null || data is! List) return ListTile(title: Text(title), trailing: const Text("\$0.00"));
+    if (data is! List || data.isEmpty || data.any((e) => e is! num)) {
+      return ListTile(title: Text(title), trailing: const Text("\$0.00"));
+    }
 
     final total = data.reduce((a, b) => a + b);
     return ListTile(title: Text(title), trailing: Text("\$${total.toStringAsFixed(2)}"));
