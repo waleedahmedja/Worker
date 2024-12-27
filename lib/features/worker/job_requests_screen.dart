@@ -98,7 +98,7 @@ class JobRequestsScreen extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      Text("Fare: \$${fare}"),
+                      Text("Fare: \$$fare"),
                       Text("Notes: $notes"),
                       const SizedBox(height: 16),
                       Row(
