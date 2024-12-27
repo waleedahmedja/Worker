@@ -38,10 +38,10 @@ class EarningsScreen extends StatelessWidget {
           }
 
           if (snapshot.hasError) {
-            return Center(
+            return const Center(
               child: Text(
                 "Failed to load earnings. Please try again later.",
-                style: const TextStyle(color: Colors.red),
+                style: TextStyle(color: Colors.red),
               ),
             );
           }
